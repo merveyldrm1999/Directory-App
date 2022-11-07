@@ -9,68 +9,83 @@ import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import * as yup from "yup";
+import { useForm, Controller } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+
+const personSchema = yup.object().shape({
+  name: yup.string("Geçersiz Değer Girdin").required("zorunlu alanları doldur"),
+  surname: yup
+    .string("Geçersiz Değer Girdin")
+    .required("zorunlu alanları doldur"),
+  phone: yup
+    .number()
+    .min(11, "En az 11 rakan giriniz")
+    .required("zorunlu alanları doldur"),
+});
 
 export default function Home() {
-  let schema = yup.object().shape({
-    name: yup.string().required(),
-    surname: yup.string().required(),
-    phone: yup.number(),
-    editId: yup.number(),
+  const [defaultValues, setDefaultValues] = useState({
+    name: "",
+    surname: "",
+    phone: "",
   });
-  const [name, setName] = useState("");
-  const [surname, setSurName] = useState("");
-  const [phone, setPhone] = useState(0);
+
+  const {
+    handleSubmit,
+    control,
+    setValue,
+    formState: { errors },
+  } = useForm({ resolver: yupResolver(personSchema), defaultValues });
+
   const [people, setPeople] = useState([]);
   const [editId, setEditId] = useState(-1);
+  const [updateOrCreate, setUpdateOrCreate] = useState(true);
 
-  const setEditPerson = (editPerson) => {
-    setName(editPerson.name);
-    setSurName(editPerson.surname);
-    setPhone(editPerson.phone_number);
+  const editPerson = (editPerson) => {
+    setDefaultValues(editPerson);
+    // setValue("name", editPerson.name)
     setEditId(editPerson.id);
+    setUpdateOrCreate(false);
+  };
+  const onError = (errors) => {
+    alert("Hatalı yerleri düzeltin");
   };
   const personUpdate = () => {
     if (editId === -1) {
       alert("Değiştirmek istediğinizi seçin");
       return;
     }
-    const editPerson = {
-      name: name,
-      surname: surname,
-      phone_number: phone,
-      id: editId,
-    };
-    schema.isValid(editPerson).then(function (valid) {
-      if (valid === true) {
-        axios
-          .post("http://127.0.0.1:8080/person/update", editPerson)
-          .then((res) => {
-            if (res.status === 200) {
-              alert("Düzenleme Başarılı");
-              console.log(res);
-              const newPerson = people.map((person) => {
-                if (person.id === res.data.changePerson.id) {
-                  person.name = res.data.changePerson.name;
-                  person.surname = res.data.changePerson.surname;
-                  person.phone_number = res.data.changePerson.phone_number;
-                }
-                return person;
-              });
-              setPeople(newPerson);
+    const editPerson = defaultValues;
+    axios
+      .post("http://127.0.0.1:8080/person/update", editPerson)
+      .then((res) => {
+        if (res.status === 200) {
+          alert("Düzenleme Başarılı");
+          console.log(res);
+          const newPerson = people.map((person) => {
+            if (person.id === res.data.changePerson.id) {
+              person.name = res.data.changePerson.name;
+              person.surname = res.data.changePerson.surname;
+              person.phone_number = res.data.changePerson.phone_number;
             }
-          })
-          .catch((err) => {
-            alert(err.response.data.err);
+            return person;
           });
-      } else {
-        alert("zorunlu alanları doldur");
-      }
-    });
+          setPeople(newPerson);
+        }
+      })
+      .catch((err) => {
+        alert(err.response.data.err);
+      });
   };
-
-  const Saved = () => {
-    console.log(name);
-    const person = { name: name, surname: surname, phone_number: phone };
+  const newSave = () => {
+    setUpdateOrCreate(true);
+  };
+  const Saved = (data) => {
+    const person = {
+      name: data.name,
+      surname: data.surname,
+      phone_number: data.phone,
+    };
     console.log(person);
 
     axios.post("http://127.0.0.1:8080/directory/create", person).then((res) => {
@@ -91,71 +106,125 @@ export default function Home() {
     });
   }, []);
 
+  const personDelete = (id) => {
+    axios
+      .delete("http://127.0.0.1:8080/person/delete/" + id)
+      .then((res) => {
+        if (res.status === 200) {
+          alert("Silme Başarılı");
+          const personn = people.filter((per) => {
+            if (per.id !== id) {
+              return per;
+            }
+          });
+          setPeople(personn);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  };
+
   return (
     <Grid container p={5}>
-      <Grid item md={4}></Grid>
+      <Grid item md={4}>
+        {updateOrCreate == true ? (
+          ""
+        ) : (
+          <Button onClick={newSave} color="primary" variant="contained">
+            Yeni Kayıt Ekle
+          </Button>
+        )}
+      </Grid>
       <Grid item md={6}>
-        <Grid container>
-          <h3>Directory App</h3>
+        <form onSubmit={handleSubmit((data) => Saved(data), onError)}>
           <Grid container>
-            <Grid item md={2} mt={1}>
-              Name:
+            <h3>Directory App</h3>
+
+            <Grid container>
+              <Grid item md={2} mt={1}>
+                Name:
+              </Grid>
+              <Grid item md={6}>
+                <Controller
+                  control={control}
+                  name="name"
+                  render={({ field: { onChange, value, ref } }) => (
+                    <TextField
+                      id="outlined-basicc"
+                      label="Name"
+                      variant="outlined"
+                      value={value.name}
+                      onChange={onChange}
+                    />
+                  )}
+                />
+                {errors.name && <p>{errors.name.message}</p>}
+              </Grid>
             </Grid>
-            <Grid item md={6}>
-              <TextField
-                id="outlined-basicc"
-                label="Name"
-                variant="outlined"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+            <Grid container mt={2}>
+              <Grid item md={2} mt={1}>
+                Surname:
+              </Grid>
+              <Grid item md={6}>
+                <Controller
+                  control={control}
+                  name="surname"
+                  render={({ field: { onChange, value, ref } }) => (
+                    <TextField
+                      id="outlined-basic"
+                      label="Surname"
+                      variant="outlined"
+                      value={value.surname}
+                      onChange={onChange}
+                    />
+                  )}
+                />
+                {errors.surname && <p>{errors.surname.message}</p>}
+              </Grid>
+            </Grid>
+            <Grid container mt={2}>
+              <Grid item md={2} mt={1}>
+                Phone Number:
+              </Grid>
+              <Grid item md={6}>
+                <Controller
+                  control={control}
+                  name="phone"
+                  render={({ field: { onChange, value, ref } }) => (
+                    <TextField
+                      id="outlined-number"
+                      label="Number"
+                      type="number"
+                      variant="outlined"
+                      value={value.phone}
+                      onChange={onChange}
+                    />
+                  )}
+                />
+                {errors.phone && <p>{errors.phone.message}</p>}
+              </Grid>
+            </Grid>
+            <Grid container p={3}>
+              <Grid item md={5}></Grid>
+              <Grid item md={6}>
+                {updateOrCreate === true ? (
+                  <Button type="submit" color="primary" variant="contained">
+                    Save
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={personUpdate}
+                    color="success"
+                    variant="contained"
+                  >
+                    Update
+                  </Button>
+                )}
+              </Grid>
             </Grid>
           </Grid>
-          <Grid container mt={2}>
-            <Grid item md={2} mt={1}>
-              Surname:
-            </Grid>
-            <Grid item md={6}>
-              <TextField
-                id="outlined-basic"
-                label="Surname"
-                variant="outlined"
-                value={surname}
-                onChange={(e) => setSurName(e.target.value)}
-              />
-            </Grid>
-          </Grid>
-          <Grid container mt={2}>
-            <Grid item md={2} mt={1}>
-              Phone Number:
-            </Grid>
-            <Grid item md={6}>
-              <TextField
-                id="outlined-number"
-                label="Number"
-                type="number"
-                variant="outlined"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </Grid>
-          </Grid>
-          <Grid container p={3}>
-            <Grid item md={5}></Grid>
-            <Grid item md={6}>
-              <Button onClick={Saved} color="primary" variant="contained">
-                Save
-              </Button>
-              <Button
-                onClick={personUpdate}
-                color="primary"
-                variant="contained"
-              >
-                Update
-              </Button>
-            </Grid>
-          </Grid>
-        </Grid>
+        </form>
       </Grid>
       <Grid item md={3}></Grid>
       <TableContainer component={Paper}>
@@ -169,24 +238,26 @@ export default function Home() {
           </TableHead>
           <TableBody>
             {people.map((person) => (
-              <TableRow
-                sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-              >
+              <TableRow>
                 <TableCell align="right">{person.name}</TableCell>
                 <TableCell align="right">{person.surname}</TableCell>
                 <TableCell align="right">{person.phone_number}</TableCell>
                 <Button
                   onClick={() => {
-                    setEditPerson(person);
+                    editPerson(person);
                   }}
                   color="primary"
                   variant="contained"
                 >
                   Edit
                 </Button>
-                {/* <Button color="error" variant="contained">
+                <Button
+                  onClick={() => personDelete(person.id)}
+                  color="error"
+                  variant="contained"
+                >
                   Delete
-                </Button> */}
+                </Button>
               </TableRow>
             ))}
           </TableBody>
