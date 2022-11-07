@@ -1,5 +1,5 @@
 import { Button, Grid, TextField } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
@@ -20,7 +20,8 @@ const personSchema = yup.object().shape({
   phone: yup
     .number()
     .min(11, "En az 11 rakan giriniz")
-    .required("zorunlu alanları doldur"),
+    .required("zorunlu alanları doldur")
+    .typeError("Telefon numarası rakam olmak zorundadır"),
 });
 
 export default function Home() {
@@ -29,20 +30,35 @@ export default function Home() {
     surname: "",
     phone: "",
   });
+  const [editId, setEditId] = useState(-1);
 
   const {
     handleSubmit,
     control,
     setValue,
+    reset,
     formState: { errors },
-  } = useForm({ resolver: yupResolver(personSchema), defaultValues });
+  } = useForm({
+    resolver: yupResolver(personSchema),
+    defaultValues: useMemo(() => {
+      return defaultValues;
+    }, [editId]),
+  });
+
+  useEffect(() => {
+    reset(defaultValues);
+  }, [editId]);
 
   const [people, setPeople] = useState([]);
-  const [editId, setEditId] = useState(-1);
   const [updateOrCreate, setUpdateOrCreate] = useState(true);
 
   const editPerson = (editPerson) => {
-    setDefaultValues(editPerson);
+    console.log(editPerson);
+    setDefaultValues({
+      name: editPerson.name,
+      surname: editPerson.surname,
+      phone: editPerson.phone_number,
+    });
     // setValue("name", editPerson.name)
     setEditId(editPerson.id);
     setUpdateOrCreate(false);
@@ -50,12 +66,17 @@ export default function Home() {
   const onError = (errors) => {
     alert("Hatalı yerleri düzeltin");
   };
-  const personUpdate = () => {
+  const personUpdate = (data) => {
     if (editId === -1) {
       alert("Değiştirmek istediğinizi seçin");
       return;
     }
-    const editPerson = defaultValues;
+    const editPerson = {
+      id: editId,
+      name: data.name,
+      surname: data.surname,
+      phone_number: data.phone,
+    };
     axios
       .post("http://127.0.0.1:8080/person/update", editPerson)
       .then((res) => {
@@ -70,13 +91,16 @@ export default function Home() {
             }
             return person;
           });
+          console.log(newPerson);
           setPeople(newPerson);
         }
       })
+
       .catch((err) => {
         alert(err.response.data.err);
       });
   };
+
   const newSave = () => {
     setUpdateOrCreate(true);
   };
@@ -91,11 +115,8 @@ export default function Home() {
     axios.post("http://127.0.0.1:8080/directory/create", person).then((res) => {
       console.log(res);
       if (res.status === 200) {
+        setPeople((people) => [...people, res.data.person]);
         alert("Kişi eklendi");
-
-        setName("");
-        setSurName("");
-        setPhone("");
       }
     });
   };
@@ -137,7 +158,13 @@ export default function Home() {
         )}
       </Grid>
       <Grid item md={6}>
-        <form onSubmit={handleSubmit((data) => Saved(data), onError)}>
+        <form
+          onSubmit={handleSubmit(
+            (data) =>
+              updateOrCreate === true ? Saved(data) : personUpdate(data),
+            onError
+          )}
+        >
           <Grid container>
             <h3>Directory App</h3>
 
@@ -154,7 +181,7 @@ export default function Home() {
                       id="outlined-basicc"
                       label="Name"
                       variant="outlined"
-                      value={value.name}
+                      value={value}
                       onChange={onChange}
                     />
                   )}
@@ -175,7 +202,7 @@ export default function Home() {
                       id="outlined-basic"
                       label="Surname"
                       variant="outlined"
-                      value={value.surname}
+                      value={value}
                       onChange={onChange}
                     />
                   )}
@@ -197,7 +224,7 @@ export default function Home() {
                       label="Number"
                       type="number"
                       variant="outlined"
-                      value={value.phone}
+                      value={value}
                       onChange={onChange}
                     />
                   )}
@@ -213,11 +240,7 @@ export default function Home() {
                     Save
                   </Button>
                 ) : (
-                  <Button
-                    onClick={personUpdate}
-                    color="success"
-                    variant="contained"
-                  >
+                  <Button type="submit" color="success" variant="contained">
                     Update
                   </Button>
                 )}
