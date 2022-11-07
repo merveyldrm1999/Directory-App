@@ -5,8 +5,6 @@ import (
 	"log"
 	"main/database"
 	"main/models"
-	"reflect"
-	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -27,13 +25,11 @@ func personCreate(c *fiber.Ctx) error {
 		})
 
 	}
-	if reflect.TypeOf(data["phone_number"]).String() == "float64" { //gelen değer float64 mü?
-		strconv.FormatFloat(data["phone_number"].(float64), 'E', -1, 32) //eğer float 64 ise bunu stringe dönüştürme
-	}
+
 	person := models.Person{
 		Name:        data["name"].(string),
 		SurName:     data["surname"].(string),
-		PhoneNumber: data["phone_number"].(string),
+		PhoneNumber: int(data["phone_number"].(float64)),
 		CreatedAt:   time.Now(),
 	}
 
@@ -79,13 +75,17 @@ func personUpdate(c *fiber.Ctx) error {
 	// 	"phone_number": data["phone_number"],
 	// 	"id":           data["id"],
 	// })
+	fmt.Printf("%+v", data)
+
 	database.Database.Db.Model(&person).Where("id = ?", data["id"]).Updates(models.Person{
 		Name:        data["name"].(string),
 		SurName:     data["surname"].(string),
-		PhoneNumber: data["phone_number"].(string),
+		PhoneNumber: int(data["phone_number"].(float64)),
 		ID:          uint(data["id"].(float64)),
 	})
+	fmt.Printf("%+v", person)
 	c.Status(200)
+	// return nil
 	return c.JSON(map[string]interface{}{
 		"message":      "Başarılı",
 		"changePerson": person,
